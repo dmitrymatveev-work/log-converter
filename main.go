@@ -5,17 +5,26 @@ import (
 	"log-converter/model"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
 	c := make(chan model.Entry, 10)
 
+	parseFirstDate := func(s string) time.Time {
+		panic("the function is not implemented")
+	}
+
+	parseSecondDate := func(s string) time.Time {
+		panic("the function is not implemented")
+	}
+
 	for _, file := range getFiles() {
 		switch file.LogFormat {
 		case "first_format":
-			discoverFirst(file.FilePath, c)
+			discover(file.FilePath, parseFirstDate, c)
 		case "second_format":
-			discoverSecond(file.FilePath, c)
+			discover(file.FilePath, parseSecondDate, c)
 		}
 	}
 
@@ -52,11 +61,7 @@ func getFiles() []model.File {
 	return files
 }
 
-func discoverFirst(filePath string, c chan<- model.Entry) {
-	fmt.Printf("Discovering %s\n", filePath)
-}
-
-func discoverSecond(filePath string, c chan<- model.Entry) {
+func discover(filePath string, parseDate func(string) time.Time, c chan<- model.Entry) {
 	fmt.Printf("Discovering %s\n", filePath)
 }
 
