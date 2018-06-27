@@ -2,30 +2,49 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"log-converter/model"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func main() {
-	c := make(chan model.Entry, 10)
-
-	parseFirstDate := func(s string) time.Time {
-		panic("the function is not implemented")
-	}
-
-	parseSecondDate := func(s string) time.Time {
-		panic("the function is not implemented")
+	fileMap := map[string][]model.File{
+		model.FirstFormat:  []model.File{},
+		model.SecondFormat: []model.File{},
 	}
 
 	for _, file := range getFiles() {
-		switch file.LogFormat {
-		case "first_format":
-			discover(file.FilePath, parseFirstDate, c)
-		case "second_format":
-			discover(file.FilePath, parseSecondDate, c)
+		if files, ok := fileMap[file.LogFormat]; ok {
+			fileMap[file.LogFormat] = append(files, file)
+		} else {
+			log.Printf("Unsupported log format: %s.\n", file.LogFormat)
 		}
+	}
+
+	c := make(chan model.Entry, 10)
+
+	for logFormat, files := range fileMap {
+		if len(files) == 0 {
+			continue
+		}
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer watcher.Close()
+
+		for _, file := range files {
+			err = watcher.Add(file.FilePath)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		go watch(watcher, getParseDate(logFormat), logFormat, c)
 	}
 
 	for e := range c {
@@ -61,8 +80,35 @@ func getFiles() []model.File {
 	return files
 }
 
-func discover(filePath string, parseDate func(string) time.Time, c chan<- model.Entry) {
-	fmt.Printf("Discovering %s\n", filePath)
+func getParseDate(logFormat string) func(s string) time.Time {
+	switch logFormat {
+	case model.FirstFormat:
+		return parseFirstDate
+	case model.SecondFormat:
+		return parseSecondDate
+	}
+	panic(fmt.Sprintf("Unsupported log format: %s.\n", logFormat))
+}
+
+func parseFirstDate(s string) time.Time {
+	panic("the function is not implemented")
+}
+
+func parseSecondDate(s string) time.Time {
+	panic("the function is not implemented")
+}
+
+func watch(w *fsnotify.Watcher, parseDate func(string) time.Time, logFormat string, c chan<- model.Entry) {
+	for {
+		select {
+		case event := <-w.Events:
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				log.Printf("Write to %s.\n", logFormat)
+			}
+		case err := <-w.Errors:
+			log.Println(err)
+		}
+	}
 }
 
 func store(e model.Entry) {
