@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"log-converter/model"
+	"log-converter/reader"
 	"os"
 	"strings"
 	"time"
@@ -27,6 +28,8 @@ func main() {
 
 	c := make(chan model.Entry, 10)
 
+	r := reader.New()
+
 	for logFormat, files := range fileMap {
 		if len(files) == 0 {
 			continue
@@ -44,7 +47,7 @@ func main() {
 			}
 		}
 
-		go watch(watcher, getParseDate(logFormat), logFormat, c)
+		go watch(watcher, r, getParseDate(logFormat), logFormat, c)
 	}
 
 	for e := range c {
@@ -98,11 +101,15 @@ func parseSecondDate(s string) time.Time {
 	panic("the function is not implemented")
 }
 
-func watch(w *fsnotify.Watcher, parseDate func(string) time.Time, logFormat string, c chan<- model.Entry) {
+func watch(w *fsnotify.Watcher, r *reader.Reader, parseDate func(string) time.Time, logFormat string, c chan<- model.Entry) {
 	for {
 		select {
 		case event := <-w.Events:
 			if event.Op&fsnotify.Write == fsnotify.Write {
+				strs := r.Read(event.Name)
+				for _, str := range strs {
+					fmt.Println(str)
+				}
 				log.Printf("Write to %s.\n", logFormat)
 			}
 		case err := <-w.Errors:
