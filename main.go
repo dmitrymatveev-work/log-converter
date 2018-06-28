@@ -41,14 +41,19 @@ func main() {
 		}
 		defer watcher.Close()
 
-		for _, file := range files {
-			err = watcher.Add(file.FilePath)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-
 		p := parser.New(parser.GetParseDate(logFormat), logFormat)
+
+		for _, file := range files {
+			f := file
+			go func() {
+				readFile(f.FilePath, r, p, c)
+
+				err = watcher.Add(f.FilePath)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}()
+		}
 
 		go watch(watcher, r, p, c)
 	}
@@ -93,21 +98,25 @@ func watch(w *fsnotify.Watcher, r *reader.Reader, p *parser.Parser, c chan<- mod
 		select {
 		case event := <-w.Events:
 			if event.Op&fsnotify.Write == fsnotify.Write {
-				strs := r.Read(event.Name)
-				for _, str := range strs {
-					str = strings.Trim(str, " \t\n\r")
-					if len(str) == 0 {
-						continue
-					}
-					entry, err := p.Parse(str, event.Name)
-					if err != nil {
-						continue
-					}
-					c <- entry
-				}
+				readFile(event.Name, r, p, c)
 			}
 		case err := <-w.Errors:
 			log.Println(err)
 		}
+	}
+}
+
+func readFile(fileName string, r *reader.Reader, p *parser.Parser, c chan<- model.Entry) {
+	strs := r.Read(fileName)
+	for _, str := range strs {
+		str = strings.Trim(str, " \t\n\r")
+		if len(str) == 0 {
+			continue
+		}
+		entry, err := p.Parse(str, fileName)
+		if err != nil {
+			continue
+		}
+		c <- entry
 	}
 }
