@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 	"log-converter/model"
+	"log-converter/parser"
 	"log-converter/reader"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -47,7 +47,9 @@ func main() {
 			}
 		}
 
-		go watch(watcher, r, getParseDate(logFormat), logFormat, c)
+		p := parser.New(parser.GetParseDate(logFormat), logFormat)
+
+		go watch(watcher, r, p, c)
 	}
 
 	for e := range c {
@@ -68,7 +70,7 @@ func getFiles() []model.File {
 		rawMeta := strings.Split(rawFile, "|")
 
 		if len(rawMeta) != 2 {
-			fmt.Printf("Wrong argument format: \"%s\". Expected: \"file path|log format\".\n", rawFile)
+			fmt.Printf("Incorrect argument format: \"%s\". Expected: \"file path|log format\".\n", rawFile)
 			continue
 		}
 
@@ -83,34 +85,23 @@ func getFiles() []model.File {
 	return files
 }
 
-func getParseDate(logFormat string) func(s string) time.Time {
-	switch logFormat {
-	case model.FirstFormat:
-		return parseFirstDate
-	case model.SecondFormat:
-		return parseSecondDate
-	}
-	panic(fmt.Sprintf("Unsupported log format: %s.\n", logFormat))
-}
-
-func parseFirstDate(s string) time.Time {
-	panic("the function is not implemented")
-}
-
-func parseSecondDate(s string) time.Time {
-	panic("the function is not implemented")
-}
-
-func watch(w *fsnotify.Watcher, r *reader.Reader, parseDate func(string) time.Time, logFormat string, c chan<- model.Entry) {
+func watch(w *fsnotify.Watcher, r *reader.Reader, p *parser.Parser, c chan<- model.Entry) {
 	for {
 		select {
 		case event := <-w.Events:
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				strs := r.Read(event.Name)
 				for _, str := range strs {
-					fmt.Println(str)
+					str = strings.Trim(str, " \t\n\r")
+					if len(str) == 0 {
+						continue
+					}
+					entry, err := p.Parse(str, event.Name)
+					if err != nil {
+						continue
+					}
+					c <- entry
 				}
-				log.Printf("Write to %s.\n", logFormat)
 			}
 		case err := <-w.Errors:
 			log.Println(err)
@@ -119,5 +110,5 @@ func watch(w *fsnotify.Watcher, r *reader.Reader, parseDate func(string) time.Ti
 }
 
 func store(e model.Entry) {
-	panic("the function is not implemented")
+	fmt.Println(e)
 }
