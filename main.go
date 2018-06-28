@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log-converter/data"
 	"log-converter/model"
 	"log-converter/parser"
 	"log-converter/reader"
@@ -53,7 +54,9 @@ func main() {
 	}
 
 	for e := range c {
-		store(e)
+		if _, err := data.CreateLogEntry(e); err != nil {
+			log.Println(err)
+		}
 	}
 }
 
@@ -107,8 +110,4 @@ func watch(w *fsnotify.Watcher, r *reader.Reader, p *parser.Parser, c chan<- mod
 			log.Println(err)
 		}
 	}
-}
-
-func store(e model.Entry) {
-	fmt.Println(e)
 }
